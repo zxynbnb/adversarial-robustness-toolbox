@@ -1,21 +1,50 @@
+# MIT License
+#
+# Copyright (C) The Adversarial Robustness Toolbox (ART) Authors 2020
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+# persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+# Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 import json
 import logging
+import os
+import requests
+import shutil
+import tempfile
+
 import pytest
 import numpy as np
 import tensorflow as tf
 import keras
 from keras.preprocessing.image import ImageDataGenerator
-import os
-import requests
-import tempfile
 from torch.utils.data import DataLoader
 import torch
-import shutil
-from tests.utils import master_seed, get_image_classifier_kr, get_image_classifier_tf, get_image_classifier_pt
-from tests.utils import get_tabular_classifier_kr, get_tabular_classifier_tf, get_tabular_classifier_pt
-from tests.utils import get_tabular_classifier_scikit_list, load_dataset
+
 from art.data_generators import PyTorchDataGenerator, TensorFlowDataGenerator, KerasDataGenerator
 from art.estimators.classification import KerasClassifier
+
+from tests.utils import (
+    master_seed,
+    get_image_classifier_kr,
+    get_image_classifier_tf,
+    get_image_classifier_pt,
+    get_tabular_classifier_kr,
+    get_tabular_classifier_tf,
+    get_tabular_classifier_pt,
+    get_tabular_classifier_scikit_list,
+    load_dataset,
+)
+
 
 logger = logging.getLogger(__name__)
 art_supported_frameworks = ["keras", "tensorflow", "pytorch", "scikitlearn"]
@@ -27,9 +56,11 @@ default_framework = "tensorflow"
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--mlFramework", action="store", default=default_framework,
+        "--mlFramework",
+        action="store",
+        default=default_framework,
         help="ART tests allow you to specify which mlFramework to use. The default mlFramework used is tensorflow. "
-             "Other options available are {0}".format(art_supported_frameworks)
+        "Other options available are {0}".format(art_supported_frameworks),
     )
 
 
@@ -90,7 +121,7 @@ def setup_tear_down_framework(framework):
         pass
     if framework == "tensorflow":
         # tf.reset_default_graph()
-        if tf.__version__[0] != '2':
+        if tf.__version__[0] != "2":
             tf.reset_default_graph()
     if framework == "pytorch":
         pass
@@ -153,33 +184,35 @@ def image_data_generator(framework, is_tf_version_2, get_default_mnist_subset, i
 
         if framework == "keras":
             return KerasDataGenerator(
-                iterator=image_iterator,
-                size=x_train_mnist.shape[0],
-                batch_size=default_batch_size,
+                iterator=image_iterator, size=x_train_mnist.shape[0], batch_size=default_batch_size,
             )
 
         if framework == "tensorflow":
             if not is_tf_version_2:
                 return TensorFlowDataGenerator(
-                    sess=kwargs["sess"], iterator=image_iterator, iterator_type="initializable", iterator_arg={},
+                    sess=kwargs["sess"],
+                    iterator=image_iterator,
+                    iterator_type="initializable",
+                    iterator_arg={},
                     size=x_train_mnist.shape[0],
-                    batch_size=default_batch_size
+                    batch_size=default_batch_size,
                 )
 
         if framework == "pytorch":
-            return PyTorchDataGenerator(iterator=image_iterator, size=x_train_mnist.shape[0],
-                                        batch_size=default_batch_size)
+            return PyTorchDataGenerator(
+                iterator=image_iterator, size=x_train_mnist.shape[0], batch_size=default_batch_size
+            )
 
     return _image_data_generator
 
 
 @pytest.fixture
 def store_expected_values(request, is_tf_version_2):
-    '''
+    """
     Stores expected values to be retrieved by the expected_values fixture
     :param request:
     :return:
-    '''
+    """
 
     def _store_expected_values(values_to_store, framework=""):
 
@@ -195,8 +228,9 @@ def store_expected_values(request, is_tf_version_2):
         file_name = request.node.location[0].split("/")[-1][:-3] + ".json"
 
         try:
-            with open(os.path.join(os.path.dirname(__file__), os.path.dirname(request.node.location[0]), file_name),
-                      "r") as f:
+            with open(
+                os.path.join(os.path.dirname(__file__), os.path.dirname(request.node.location[0]), file_name), "r"
+            ) as f:
                 expected_values = json.load(f)
         except FileNotFoundError:
             expected_values = {}
@@ -204,8 +238,9 @@ def store_expected_values(request, is_tf_version_2):
         test_name = request.node.name + framework_name
         expected_values[test_name] = values_to_store
 
-        with open(os.path.join(os.path.dirname(__file__), os.path.dirname(request.node.location[0]), file_name),
-                  "w") as f:
+        with open(
+            os.path.join(os.path.dirname(__file__), os.path.dirname(request.node.location[0]), file_name), "w"
+        ) as f:
             json.dump(expected_values, f)
 
     return _store_expected_values
@@ -213,11 +248,11 @@ def store_expected_values(request, is_tf_version_2):
 
 @pytest.fixture
 def expected_values(framework, request, is_tf_version_2):
-    '''
+    """
     Retrieves the expected values that were stored using the store_expected_values fixture
     :param request:
     :return:
-    '''
+    """
 
     file_name = request.node.location[0].split("/")[-1][:-3] + ".json"
 
@@ -302,23 +337,26 @@ def get_tabular_classifier_list(framework):
 def create_test_image(create_test_dir):
     test_dir = create_test_dir
     # Download one ImageNet pic for tests
-    url = 'http://farm1.static.flickr.com/163/381342603_81db58bea4.jpg'
+    url = "http://farm1.static.flickr.com/163/381342603_81db58bea4.jpg"
     result = requests.get(url, stream=True)
     if result.status_code == 200:
         image = result.raw.read()
-        f = open(os.path.join(test_dir, 'test.jpg'), 'wb')
+        f = open(os.path.join(test_dir, "test.jpg"), "wb")
         f.write(image)
         f.close()
 
-    yield os.path.join(test_dir, 'test.jpg')
+    yield os.path.join(test_dir, "test.jpg")
 
 
 @pytest.fixture(scope="session")
 def framework(request):
     mlFramework = request.config.getoption("--mlFramework")
     if mlFramework not in art_supported_frameworks:
-        raise Exception("mlFramework value {0} is unsupported. Please use one of these valid values: {1}".format(
-            mlFramework, " ".join(art_supported_frameworks)))
+        raise Exception(
+            "mlFramework value {0} is unsupported. Please use one of these valid values: {1}".format(
+                mlFramework, " ".join(art_supported_frameworks)
+            )
+        )
     # if utils_test.is_valid_framework(mlFramework):
     #     raise Exception("The mlFramework specified was incorrect. Valid options available
     #     are {0}".format(art_supported_frameworks))
@@ -332,7 +370,7 @@ def default_batch_size():
 
 @pytest.fixture(scope="session")
 def is_tf_version_2():
-    if tf.__version__[0] == '2':
+    if tf.__version__[0] == "2":
         yield True
     else:
         yield False
@@ -341,7 +379,7 @@ def is_tf_version_2():
 @pytest.fixture(scope="session")
 def load_iris_dataset():
     logging.info("Loading Iris dataset")
-    (x_train_iris, y_train_iris), (x_test_iris, y_test_iris), _, _ = load_dataset('iris')
+    (x_train_iris, y_train_iris), (x_test_iris, y_test_iris), _, _ = load_dataset("iris")
 
     yield (x_train_iris, y_train_iris), (x_test_iris, y_test_iris)
 
@@ -392,7 +430,7 @@ def get_default_mnist_subset(get_mnist_dataset, default_dataset_subset_sizes, mn
 @pytest.fixture(scope="session")
 def load_mnist_dataset():
     logging.info("Loading mnist")
-    (x_train_mnist, y_train_mnist), (x_test_mnist, y_test_mnist), _, _ = load_dataset('mnist')
+    (x_train_mnist, y_train_mnist), (x_test_mnist, y_test_mnist), _, _ = load_dataset("mnist")
     yield (x_train_mnist, y_train_mnist), (x_test_mnist, y_test_mnist)
 
 
@@ -428,18 +466,18 @@ def get_mnist_dataset(load_mnist_dataset, mnist_shape):
 # eg: @pytest.mark.only_with_platform("tensorflow")
 @pytest.fixture(autouse=True)
 def only_with_platform(request, framework):
-    if request.node.get_closest_marker('only_with_platform'):
-        if framework not in request.node.get_closest_marker('only_with_platform').args:
-            pytest.skip('skipped on this platform: {}'.format(framework))
+    if request.node.get_closest_marker("only_with_platform"):
+        if framework not in request.node.get_closest_marker("only_with_platform").args:
+            pytest.skip("skipped on this platform: {}".format(framework))
 
 
 # ART test fixture to skip test for specific mlFramework values
 # eg: @pytest.mark.skipMlFramework("tensorflow","scikitlearn")
 @pytest.fixture(autouse=True)
 def skip_by_platform(request, framework):
-    if request.node.get_closest_marker('skipMlFramework'):
-        if framework in request.node.get_closest_marker('skipMlFramework').args:
-            pytest.skip('skipped on this platform: {}'.format(framework))
+    if request.node.get_closest_marker("skipMlFramework"):
+        if framework in request.node.get_closest_marker("skipMlFramework").args:
+            pytest.skip("skipped on this platform: {}".format(framework))
 
 
 @pytest.fixture
@@ -452,6 +490,6 @@ def make_customer_record():
 
 @pytest.fixture(autouse=True)
 def framework_agnostic(request, framework):
-    if request.node.get_closest_marker('framework_agnostic'):
+    if request.node.get_closest_marker("framework_agnostic"):
         if framework is not default_framework:
-            pytest.skip('framework agnostic test skipped for framework : {}'.format(framework))
+            pytest.skip("framework agnostic test skipped for framework : {}".format(framework))
